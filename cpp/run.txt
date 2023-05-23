@@ -1,0 +1,12 @@
+g++ -I . demo1.cpp -o demo1.exe && demo1.exe
+
+g++ -I . demo2.cpp -o demo2.exe && demo2.exe
+
+g++ -I . demo3.cpp -o demo3.exe && demo3.exe
+
+
+
+g++ -I . demo4.cpp -o demo4.exe && demo4.exe
+
+
+
