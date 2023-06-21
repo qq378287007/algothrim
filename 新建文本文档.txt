@@ -1,0 +1,9 @@
+最大迭代数MaxIter：200
+均方误差损失函数（MSE）TolFun：1.0000e-08
+lambda初始值：0.01
+
+
+信任域lambda更新规则
+
+
+open nlinfit

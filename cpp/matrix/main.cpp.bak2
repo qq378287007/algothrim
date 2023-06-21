@@ -1,0 +1,79 @@
+#include "Matrix.h"
+
+
+using func = Matrix(*)(Matrix, Matrix);
+
+double myLMfit(const Matrix &m_X,
+               const Matrix &m_Y,
+               func m_Model,
+               const Matrix &m_Beta,
+               int m_Maxiter = 200){
+    static const double eps = 2.220446049250313e-16;
+
+    static double betatol = 1.00E-08;
+    static double rtol = 1.00E-08;
+
+    static const double sqrteps = 1.490116119384766e-08;
+
+    Matrix fdiffstep{m_Beta.row(), m_Beta.col(), pow(eps, 1.0/3.0)};
+
+    int p = m_Beta.length();
+
+    double lambda = 0.01;
+
+    Matrix yfit = m_Model(m_Beta, m_X);
+
+    Matrix r = m_Y - yfit;//求差
+
+    Matrix sse = r.T() * r;//误差平方和
+
+    Matrix zerosp = Matrix::zeros(p, 1);
+
+    bool breakOut = false;
+
+    for(int iter=0; iter<m_Maxiter; iter++){
+
+        Matrix betaold = m_Beta;
+        Matrix sseold = sse;
+
+        // J = getjacobian(beta, fdiffstep, model, X, yfit);
+        Matrix J(0, 0, 0.0);
+
+        Matrix diagJtJ = J.abs().mul(J).sum(1);
+    }
+
+    return 0.0;
+}
+
+
+int main()
+{
+
+    Matrix b(3, 3, 1);
+
+    /*
+    cout << b.get(0, 1) << endl;
+
+    Matrix a(3, 3);
+    a = b;
+    cout << a.row() << a.col() << a.get(1, 1) << endl;
+
+    Matrix c(b);
+    c.set(0, 0, 1);
+    c.set(1, 1, 100);
+    c.set(2, 2, 10);
+    c.set(0, 2, 7);
+    cout << c.row() << c.col() << c.get(1, 1) << endl;
+    cout << c << c * c << c.inv_LU() * c << c.getDet() << endl;
+
+    Matrix d = Matrix::matrixRand(5, 5, -2, 9);
+    cout << d << d.inv_LU() * d;
+
+    d = Matrix::diag(5, 2.1);
+    cout << d << d.inv_LU() << d * d.inv_LU();
+*/
+
+    cout << "Over!\n";
+
+    return 0;
+}

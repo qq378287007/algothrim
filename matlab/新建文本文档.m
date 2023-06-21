@@ -3,9 +3,9 @@ clear;
 clc;
 
 D = readmatrix('ChinaSteel_35CS250H.csv');
-D = readmatrix('ChinaSteel_50CS350.csv');
-D = readmatrix('DW415.csv');
-D = readmatrix('JFE_Steel_35JN210.csv');
+% D = readmatrix('ChinaSteel_50CS350.csv');
+% D = readmatrix('DW415.csv');
+% D = readmatrix('JFE_Steel_35JN210.csv');
 %D = readmatrix('JFE_Steel_35JN360.csv');
 H = D(:, 1);
 B = D(:, 2);
@@ -25,7 +25,16 @@ ylabel("B");
 legend("Initial Data", "Fit Data", 'Location', 'SouthEast');
 
 
+rmse1 = sqrt(mean((B-myfun(beta1, H)).^2))
+
+rmse2 = sqrt(mean((B-myfun(beta2, H)).^2))
+
+
+
 %
+beta2 = [ 2.19234, -7853, -796293, 11346.2, 508683, 0.879429, -1227.45, -44.0215, 1959.13, ]
+
+
 beta2 =  [2.19028 ...
      22.3963  ...
     -2911.36  ...

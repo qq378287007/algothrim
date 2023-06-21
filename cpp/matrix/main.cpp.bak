@@ -1,0 +1,432 @@
+#include <iostream>
+#include <cmath>
+using namespace std;
+
+#define EPSINON 1.0e-14
+
+inline bool isEqual(const double &num1, const double &num2)
+{
+    return (num1 - num2 <= EPSINON && num1 - num2 >= -EPSINON);
+}
+
+class Matrix
+{
+public:
+    Matrix(int row, int col, double init = 0.0)
+        : m_Row(row), m_Col(col)
+    {
+        if (row <= 0 || col <= 0)
+            throw "Error in Matrix(int&, int&, const double&): the row and col of matrix must > 0.";
+
+        m_Data = new double[m_Row * m_Col];
+        for (int i = 0; i < m_Row * m_Col; ++i)
+            m_Data[i] = init;
+    }
+
+    Matrix(const Matrix &m)
+    {
+        m_Row = m.m_Row;
+        m_Col = m.m_Col;
+        m_Data = new double[m_Row * m_Col];
+        memcpy((void *)m_Data, (const void *)m.m_Data, sizeof(double) * m_Col * m_Row);
+    }
+
+    Matrix &operator=(const Matrix &m)
+    {
+        if (m.m_Data == m_Data)
+            return *this;
+
+        if (m_Row != m.m_Row || m_Col != m.m_Col)
+            throw "Error in operator=(): size of matrix is not equal.";
+
+        memcpy((void *)m_Data, (void *)m.m_Data, sizeof(double) * m_Col * m_Row);
+        return *this;
+    }
+
+    ~Matrix()
+    {
+        delete[] m_Data;
+        m_Data = nullptr;
+        m_Row = 0;
+        m_Col = 0;
+    }
+
+    inline int row() const { return m_Col; }
+    inline int col() const { return m_Row; }
+    inline bool isSquareMatrix() const { return m_Row == m_Col; }
+
+    double *getRowPoint(int row) const
+    {
+        if (row < 0 || row >= m_Row)
+            throw "Error in getRowPoint(const int&) const: the index of row is wrong.";
+
+        return m_Data + m_Col * row;
+    }
+
+    double get(int row, int col) const
+    {
+        if (row < 0 || col < 0 || row > m_Row - 1 || col > m_Col - 1)
+            throw "Error in Matrix::get(const int&, const int&) const: the index is wrong.";
+
+        double *pR = getRowPoint(row);
+        return pR[col];
+    }
+
+    bool set(int row, int col, double init)
+    {
+        if (row < 0 || col < 0 || row > m_Row || col > m_Col)
+            throw "Error in Matrix::set(const int&, const int&, const double&): the index is wrong.";
+
+        double *pR = getRowPoint(row);
+        pR[col] = init;
+        return true;
+    }
+
+    //矩阵交换两行
+    bool swapRow(int iRow, int jRow)
+    {
+        if (iRow < 0 || jRow < 0 || iRow >= m_Row || jRow >= m_Row)
+            throw "Error in swapRow(const int&, const int&): i<0 || j<0 || i>=row || j>=row.";
+        if(iRow == jRow)
+            return true;
+
+        double *pI = m_Data + m_Col * iRow;
+        double *pJ = m_Data + m_Col * jRow;
+        for (int col = 0; col < m_Col; ++col)
+        {
+            double temp = pI[col];
+            pI[col] = pJ[col];
+            pJ[col] = temp;
+        }
+
+        return true;
+    }
+
+    inline double operator()(int row, int col) const
+    {
+        return get(row, col);
+    }
+
+    //矩阵乘法
+    friend Matrix operator*(const Matrix &m1, const Matrix &m2)
+    {
+        if (m1.m_Col != m2.m_Row)
+            throw "Error in operator*(m1, m2): m1.m_Col != m2.m_Row.";
+
+        Matrix result(m1.m_Row, m2.m_Col, 0.0);
+
+        for (int row = 0; row < m1.m_Row; ++row)
+        {
+            double *pR = result.getRowPoint(row);
+            double *pM1 = m1.getRowPoint(row);
+            for (int col = 0; col < m2.m_Col; ++col)
+            {
+                double *pM2 = m2.m_Data + col;
+                for (int k = 0; k < m1.m_Col; ++k)
+                    pR[col] += pM1[k] * pM2[k * m2.m_Col];
+            }
+        }
+
+        return result;
+    }
+
+    //矩阵行列式
+    double getDet() const
+    {
+        if (!isSquareMatrix())
+            throw "Error in getDet(): the matrix is not square.";
+
+        Matrix copyMatrix(*this);
+        // 记录初等行变换的次数
+        int iter = 0;
+
+        for (int i = 0; i < m_Row; ++i)
+        {
+            if (isEqual(copyMatrix(i, i), 0.0))
+            {
+                for (int j = i; j < m_Row; ++j)
+                {
+                    if (!isEqual(copyMatrix(j, i), 0.0))
+                    {
+                        if (!copyMatrix.swapRow(i, j))
+                            return 0.0;
+                        ++iter;
+                    }
+                }
+            }
+
+            for (int k = i + 1; k < m_Row; ++k)
+            {
+                double scale = -1 * copyMatrix(k, i) / copyMatrix(i, i);
+                double data = 0;
+                for (int u = 0; u < m_Row; ++u)
+                {
+                    data = copyMatrix(k, u) + copyMatrix(i, u) * scale;
+                    copyMatrix.set(k, u, data);
+                }
+            }
+        }
+
+        double det = 1;
+        for (int i = 0; i < m_Row; ++i)
+            det *= copyMatrix(i, i);
+
+        if (1 == iter % 2)
+            det *= -1;
+
+        return det;
+    }
+
+    //LU分解求逆矩阵
+    Matrix inv_LU() const
+    {
+        if (!isSquareMatrix())
+            throw "Error in inv_LU(): The matrix is not square.";
+
+        double det = getDet();
+        if (det >= -EPSINON && det <= EPSINON)
+            throw "Error in inv_LU(): the determinant is equal to 0.";
+
+        int n = m_Row;
+        // 建立l、l_inverse、u、u_inverse矩阵
+        Matrix l(n, n);
+        Matrix l_inverse(n, n);
+        Matrix u(n, n);
+        Matrix u_inverse(n, n);
+
+        // 计算矩阵对角线
+        for (int i = 0; i < n; ++i)
+        {
+            l.set(i, i, 1.0);
+            l_inverse.set(i, i, 1.0);
+        }
+
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = i; j < n; ++j)
+            {
+                double s = 0.0;
+                for (int k = 0; k < i; ++k)
+                    s += l(i, k) * u(k, j); // 按行计算u值
+                u.set(i, j, get(i, j) - s);
+            }
+
+            for (int j = i + 1; j < n; ++j)
+            {
+                double s = 0.0;
+                for (int k = 0; k < i; ++k)
+                    s += l(j, k) * u(k, i);
+                l.set(j, i, (get(j, i) - s) / u(i, i)); // 按列计算l值
+            }
+        }
+
+        for (int i = 1; i < n; ++i)
+        {
+            for (int j = 0; j < i; ++j)
+            {
+                double s = 0.0;
+                for (int k = 0; k < i; ++k)
+                    s += l(i, k) * l_inverse(k, j);
+                l_inverse.set(i, j, -s);
+            }
+        }
+
+        for (int i = 0; i < n; ++i)
+            u_inverse.set(i, i, 1 / u(i, i));
+
+        for (int i = 1; i < n; ++i)
+        {
+            for (int j = i - 1; j >= 0; --j)
+            {
+                double s = 0;
+                for (int k = j + 1; k <= i; ++k)
+                    s += u(j, k) * u_inverse(k, i);
+
+                u_inverse.set(j, i, -s / u(j, j));
+            }
+        }
+
+        Matrix result(u_inverse * l_inverse);
+
+        for (int i = 0; i < result.m_Row; ++i)
+        {
+            for (int j = 0; j < result.m_Col; ++j)
+            {
+                if (_isnan(result.get(i, j)))
+                    throw "Error in inv_LU(): the result is 1.#INF or -1.#IND or 1.#INF000 or -1.#INF000.";
+            }
+        }
+
+        return result;
+    }
+
+    //矩阵转置
+    Matrix T() const
+    {
+        Matrix result(m_Col, m_Row);
+
+        for (int row = 0; row < m_Row; ++row)
+        {
+            double *pSrc = getRowPoint(row);
+            for (int col = 0; col < m_Col; ++col)
+            {
+                double *pDst = result.getRowPoint(col);
+                pDst[row] = pSrc[col];
+            }
+        }
+
+        return result;
+    }
+
+    //矩阵点乘
+    Matrix mul(const Matrix &m) const
+    {
+        if (m_Row != m.m_Row || m_Col != m.m_Col)
+            throw "Error in mul(): the size of matrix is not equal.";
+        else if (nullptr == m_Data)
+            throw "Error in mul(): the data point to NULL.";
+
+        Matrix result(m_Row, m_Col);
+
+        double *pR = result.m_Data;
+        double *pM1 = m_Data;
+        double *pM2 = m.m_Data;
+        for (int i = 0; i < m_Row * m_Col; ++i)
+            pR[i] = pM1[i] * pM2[i];
+
+        return result;
+    }
+
+    //按行求和
+    Matrix sumByRow() const
+    {
+        if (nullptr == m_Data)
+            throw "Error in sumByRow(): the data is NULL.";
+
+        Matrix result(m_Row, 1, 0.0);
+
+        double *pDst = result.m_Data;
+        for (int i = 0; i < m_Row; ++i)
+        {
+            double *pSrc = getRowPoint(i);
+            for (int j = 0; j < m_Col; ++j)
+                pDst[i] += pSrc[j];
+        }
+
+        return result;
+    }
+
+    //按列行求和
+    Matrix sumByCol() const
+    {
+        if (nullptr == m_Data)
+            throw "Error in sumByRow(): the data is NULL.";
+
+        Matrix result(1, m_Col, 0.0);
+
+        double *pDst = result.m_Data;
+        for (int i = 0; i < m_Col; ++i)
+        {
+            double *pSrc = m_Data + i;
+            for (int j = 0; j < m_Row; ++j)
+                pDst[i] += pSrc[j * m_Col];
+        }
+
+        return result;
+    }
+
+    //矩阵点乘后求和
+    double dot(const Matrix &m) const
+    {
+        if (m_Row != m.m_Row || m_Col != m.m_Col)
+            throw "Error in Matrix::dot(m): m_Row != m.m_Row || m_Col != m.m_Col.";
+
+        Matrix result = mul(m).sumByCol().sumByRow();
+        double r = *result.m_Data;
+
+        return r;
+    }
+
+    //随机矩阵
+    static Matrix matrixRand(int row, int col, double start, double end)
+    {
+        if (row <= 0 || col <= 0)
+            throw "Error in matrixRand(): row <= 0 || col <= 0.";
+
+        if (start >= end)
+            throw "Error in matrixRand(): _start >= initnd.";
+
+        Matrix result(row, col);
+
+        double *pR = result.m_Data;
+        for (int i = 0; i < row * col; ++i)
+        {
+            //	srand((unsigned)time(NULL));
+            *(pR + i) = rand() / double(RAND_MAX) * (end - start) + start;
+        }
+
+        return result;
+    }
+
+    //对角矩阵
+    static Matrix diag(int n, double init = 0.0)
+    {
+        Matrix result(n, n, 0.0);
+        for (int i = 0; i < n; ++i)
+            result.set(i, i, init);
+        return result;
+    }
+
+    //输出矩阵
+    friend ostream &operator<<(ostream &_out, const Matrix &m)
+    {
+        double *p = m.m_Data;
+
+        _out << "[\n";
+        for (int i = 0; i < m.m_Row; ++i)
+        {
+            _out << "  ";
+            for (int j = 0; j < m.m_Col; ++j)
+                _out << *(p + i * m.m_Col + j) << ",\t ";
+            _out << "\n";
+        }
+        _out << "]\n";
+
+        return _out;
+    }
+
+private:
+    int m_Row;
+    int m_Col;
+
+    double *m_Data;
+};
+
+int main()
+{
+
+    Matrix b(3, 3, 1);
+    cout << b.get(0, 1) << endl;
+
+    Matrix a(3, 3);
+    a = b;
+    cout << a.row() << a.col() << a.get(1, 1) << endl;
+
+    Matrix c(b);
+    c.set(0, 0, 1);
+    c.set(1, 1, 100);
+    c.set(2, 2, 10);
+    c.set(0, 2, 7);
+    cout << c.row() << c.col() << c.get(1, 1) << endl;
+    cout << c << c * c << c.inv_LU() * c << c.getDet() << endl;
+
+    Matrix d = Matrix::matrixRand(5, 5, -2, 9);
+    cout << d << d.inv_LU() * d;
+
+    d = Matrix::diag(5, 2.1);
+    cout << d << d.inv_LU() << d * d.inv_LU();
+
+    cout << "Over!\n";
+
+    return 0;
+}

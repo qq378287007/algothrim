@@ -1,0 +1,163 @@
+function beta = mynlinfit(X, y, model, beta)
+maxiter = 200;
+beta = myLMfit(X, y, model, beta, maxiter);
+end
+
+function  beta = myLMfit(X, y, model, beta, maxiter)
+% Levenberg-Marquardt algorithm for nonlinear regression
+
+% Set up convergence tolerances from options.
+betatol = 1.00E-08;
+rtol = 1.00E-08;
+fdiffstep = eps^(1/3);
+
+fdiffstep = repmat(fdiffstep, size(beta));
+
+% Set initial weight for LM algorithm.
+lambda = 0.01;
+
+% Set the iteration step
+sqrteps = sqrt(eps(class(beta)));
+
+p = length(beta);
+
+% treatment for nans
+yfit = model(beta, X);%求值
+r = y(:) - yfit(:);%求差
+sse = r'*r;%误差平方和
+
+zerosp = zeros(p, 1, class(r));
+iter = 0;
+breakOut = false;
+
+while iter < maxiter
+    iter = iter + 1;
+    betaold = beta;
+    sseold = sse;
+    
+    % Compute a finite difference approximation to the Jacobian
+    J = getjacobian(beta, fdiffstep, model, X, yfit);
+    
+    % Levenberg-Marquardt step: inv(J'*J+lambda*D)*J'*r
+    diagJtJ = sum(abs(J).^2, 1);
+    %         if funValCheck && ~all(isfinite(diagJtJ)), checkFunVals(J(:)); end
+    Jplus = [J; diag(sqrt(lambda*diagJtJ))];
+    rplus = [r; zerosp];
+    step = Jplus \ rplus;
+    beta(:) = beta(:) + step;
+    
+    % Evaluate the fitted values at the new coefficients and
+    % compute the residuals and the SSE.
+    yfit = model(beta,X);
+    fullr = (y(:) - yfit(:));
+    r = fullr;
+    sse = r'*r;
+    %         if funValCheck && ~isfinite(sse), checkFunVals(r); end
+    % If the LM step decreased the SSE, decrease lambda to downweight the
+    % steepest descent direction.  Prevent underflowing to zero after many
+    % successful steps; smaller than eps is effectively zero anyway.
+    if sse < sseold
+        lambda = max(0.1*lambda,eps);
+        
+        % If the LM step increased the SSE, repeatedly increase lambda to
+        % upweight the steepest descent direction and decrease the step size
+        % until we get a step that does decrease SSE.
+    else
+        while sse > sseold
+            lambda = 10*lambda;
+            if lambda > 1e16
+                breakOut = true;
+                break
+            end
+            Jplus = [J; diag(sqrt(lambda*sum(J.^2,1)))];
+            step = Jplus \ rplus;
+            beta(:) = betaold(:) + step;
+            yfit = model(beta,X);
+            fullr = (y(:) - yfit(:));
+            r = fullr;
+            sse = r'*r;
+            %                 if funValCheck && ~isfinite(sse), checkFunVals(r); end
+        end
+    end
+    
+    
+    % Check step size and change in SSE for convergence.
+    if norm(step) < betatol*(sqrteps+norm(beta))
+        cause = 'tolx';
+        break
+    elseif abs(sse-sseold) <= rtol*sse
+        cause = 'tolfun';
+        break
+    elseif breakOut
+        cause = 'stall';
+        break
+    end
+end
+if (iter >= maxiter)
+    cause = 'maxiter';
+end
+end % function LMfit
+
+
+% ---------------------- Jacobian
+function J = getjacobian(beta, fdiffstep, model, X, yfit)
+    function yplus = call_model_nested(betaNew)
+        yplus = model(betaNew, X);
+    end
+J = statjacobian(@call_model_nested, beta, fdiffstep, yfit);
+end % function getjacobian
+
+
+function J = statjacobian(func, theta, DerivStep, y0, rowIdx)
+%STATJACOBIAN Estimate the Jacobian of a function
+
+% Use the appropriate class for variables.
+classname = class(theta);
+
+% Handle optional arguments, starting with y0 since it will be needed to
+% determine the appropriate size for a default groups.
+if nargin < 4 || isempty(y0)
+    y0 = func(theta);
+end
+
+if nargin < 5 || isempty(rowIdx)
+    % When there is only one group, ensure that theta is a row vector so
+    % that vectoriation works properly. Also ensure that the underlying
+    % function is called with an input with the original size of theta.
+    thetaOriginalSize = size(theta);
+    theta = reshape(theta, 1, []);
+    
+    func = @(theta) func(reshape(theta, thetaOriginalSize));
+    
+    % All observations belong to a single group; scalar expansion allows us
+    % to vectorize using a scalar index.
+    rowIdx = 1;
+end
+[numThetaRows, numParams] = size(theta);
+
+if nargin < 3 || isempty(DerivStep)
+    % Best practice for forward/backward differences:
+    DerivStep = repmat(sqrt(eps(classname)), 1, numParams);
+    % However, NLINFIT's default is eps^(1/3).
+elseif isscalar(DerivStep)
+    DerivStep = repmat(DerivStep, 1, numParams);
+end
+
+delta = zeros(numThetaRows, numParams, classname);
+J = zeros(numel(y0), numParams, classname);
+for i = 1:numParams
+    % Calculate delta(:,i), but remember to set it back to 0 at the end of the loop.
+    delta(:,i) = DerivStep(i) * theta(:,i);
+    deltaZero = delta(:,i) == 0;
+    if any(deltaZero)
+        % Use the norm as the "scale", or 1 if the norm is 0.
+        nTheta = sqrt(sum(theta(deltaZero,:).^2, 2));
+        delta(deltaZero,i) = DerivStep(i) * (nTheta + (nTheta==0));
+    end
+    thetaNew = theta + delta;
+    yplus = func(thetaNew);
+    dy = yplus(:) - y0(:);
+    J(:,i) = dy./delta(rowIdx,i);
+    delta(:,i) = 0;
+end
+end

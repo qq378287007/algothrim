@@ -1,0 +1,24 @@
+subroutine triangulate
+input : vertex list 　　输入：顶点链表
+output : triangle list　　输出：三角形链表
+    initialize the triangle list　　初始化三角形链表
+    determine the supertriangle　　确定超级三角形
+    add supertriangle vertices to the end of the vertex list　　 将超级三角形的顶点加入到顶点链表中
+    add the supertriangle to the triangle list　　将超级三角形加入到三角形链表中
+    for each sample point in the vertex list　　对顶点链表中的每一个点
+        initialize the edge buffer　　初始化边数组
+        for each triangle currently in the triangle list　　对于三角形链表中的每一个三角形
+        calculate the triangle circumcircle center and radius　　计算出外接圆圆心和半径
+        if the point lies in the triangle circumcircle then　　如果这个点在三角形的外接圆内
+        add the three triangle edges to the edge buffer　　把这个三角形的三条边加入到边数组中
+        remove the triangle from the triangle list　　从三角形链表中将这个三角形删除
+        endif
+        endfor
+        delete all doubly specified edges from the edge buffer　　把边数组中所有重复的边都删除，注意这里是把所有的重复边都删除，比如有边e1,e2,e2,e3，删除后应该只剩e1和e3
+        this leaves the edges of the enclosing polygon only　　这步会得到一个闭合的多边形
+        add to the triangle list all triangles formed between the point 用这个点和边数组中的每一条边都组合成一个三角形，加入到三角形链表中
+        and the edges of the enclosing polygon
+    endfor
+    remove any triangles from the triangle list that use the supertriangle vertices从三角形链表中删除使用超级三角形顶点的三角形
+    remove the supertriangle vertices from the vertex list将超级三角形的顶点从顶点链表中删除
+end
