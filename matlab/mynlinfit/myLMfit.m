@@ -28,6 +28,7 @@ for iter = 1 : maxiter
     Jplus = [J; diag(sqrt(lambda * diagJtJ))];
     rplus = [r; zeros(length(beta), 1)];
     step = Jplus \ rplus;% Jplus * step = rplus£¬Çóstep
+    %step = pinv(Jplus) * rplus;
     %step = pinv(J' * J + lambda * diagJtJ) * J' * r;
     %step = (Jplus' * Jplus) ^ -1 * Jplus' * rplus;
     beta(:) = beta(:) + step;

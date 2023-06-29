@@ -10,19 +10,19 @@
 typedef struct
 {
     int p1, p2, p3;
-} ITRIANGLE; // 三角形顶点序号
+} ITRIANGLE; // 三角形点序号
 
 typedef struct
 {
     int p1, p2;
-} IEDGE; // 边端点序号
+} IEDGE; // 边序号
 
 typedef struct
 {
     double x, y, z;
-} XYZ; // 点坐标，z未使用
+} XYZ; // 点坐标，z未使用（0.0）
 
-int XYZCompare(const void *v1, const void *v2) // 用于qsort
+int XYZCompare(const void *v1, const void *v2) // 用于点排序
 {
     XYZ *p1 = (XYZ *)v1;
     XYZ *p2 = (XYZ *)v2;
@@ -100,7 +100,9 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
     int *complete = NULL;
     IEDGE *edges = NULL;
 
-    // Allocate memory for the completeness list, flag for each triangle
+    //  为完整性列表分配内存，标记每个三角形
+    //  当前点到三角形外接圆中心距离的x分量大于外接圆半径时
+    //  之后采样点（注意x是升序的）不用考虑该三角形(肯定位于该三角形外接圆外部)
     if ((complete = malloc(trimax * sizeof(int))) == NULL)
     {
         status = 1;
@@ -108,14 +110,15 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
     }
 
     int emax = 200;
-    // Allocate memory for the edge list
+    // 为缓存边列表分配内存
     if ((edges = malloc(emax * (long)sizeof(IEDGE))) == NULL)
     {
         status = 2;
         goto skip;
     }
 
-    //  Find the maximum and minimum vertex bounds. This is to allow calculation of the bounding triangle
+    //  找到最大和最小顶点边界
+    //  这是为了允许计算边界三角形
     double xmin, xmax, ymin, ymax, xmid, ymid;
     double dx, dy, dmax;
     xmin = pxyz[0].x;
@@ -139,10 +142,10 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
     xmid = (xmax + xmin) / 2.0;
     ymid = (ymax + ymin) / 2.0;
 
-    // Set up the supertriangle
-    // This is a triangle which encompasses all the sample points.
-    // The supertriangle coordinates are added to the end of the vertex list.
-    // The supertriangle is the first triangle in the triangle list.
+    // 设置超三角形
+    // 这是一个包含所有采样点的三角形
+    // 超三角形坐标将添加到顶点列表的末尾
+    // 超三角形是三角形列表中的第一个三角形
     pxyz[nv + 0].x = xmid - 20 * dmax;
     pxyz[nv + 0].y = ymid - dmax;
     pxyz[nv + 0].z = 0.0;
@@ -158,7 +161,7 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
     complete[0] = FALSE;
     *ntri = 1;
 
-    //  Include each point one at a time into the existing mesh
+    //  在现有网格中一次包含一个点
     for (int i = 0; i < nv; i++)
     {
         double xp = pxyz[i].x;
@@ -166,10 +169,9 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
 
         int nedge = 0;
 
-        // Set up the edge buffer.
-        // If the point (xp, yp) lies inside the circumcircle then
-        // the three edges of that triangle are added to the edge buffer
-        // and that triangle is removed.
+        // 设置边缓冲区
+        // 如果点（xp，yp）位于外接圆内，则该三角形的三条边被添加到边缓冲区
+        // 并且该三角形被移除
         for (int j = 0; j < (*ntri); j++)
         {
             if (complete[j])
@@ -186,7 +188,7 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
                 complete[j] = TRUE;
             if (inside)
             {
-                // Check that we haven't exceeded the edge list size
+                // 检查我们是否没有超过边缓存列表大小
                 if (nedge + 3 >= emax)
                 {
                     emax += 100;
@@ -210,9 +212,8 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
             }
         }
 
-        // Tag multiple edges
-        // Note: if all triangles are specified anticlockwise then
-        // all interior edges are opposite pointing in direction.
+        // 标记多条边
+        // 注意：如果所有三角形都是逆时针指定的，那么所有内部边缘都指向相反的方向
         for (int j = 0; j < nedge - 1; j++)
         {
             for (int k = j + 1; k < nedge; k++)
@@ -224,7 +225,7 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
                     edges[k].p1 = -1;
                     edges[k].p2 = -1;
                 }
-                // Shouldn't need the following, see note above
+                // 不需要以下内容，请参阅上面的注释
                 if ((edges[j].p1 == edges[k].p1) && (edges[j].p2 == edges[k].p2))
                 {
                     edges[j].p1 = -1;
@@ -235,8 +236,8 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
             }
         }
 
-        // Form new triangles for the current point Skipping over any tagged edges.
-        // All edges are arranged in clockwise order.
+        // 跳过任何标记的边，为当前点形成新的三角形
+        // 所有边均按顺时针顺序排列
         for (int j = 0; j < nedge; j++)
         {
             if (edges[j].p1 < 0 || edges[j].p2 < 0)
@@ -254,8 +255,8 @@ int Triangulate(int nv, XYZ *pxyz, ITRIANGLE *v, int *ntri)
         }
     }
 
-    // Remove triangles with supertriangle vertices
-    // These are triangles which have a vertex number greater than nv
+    // 删除具有超三角形顶点的三角形
+    // 这些三角形中存在顶点数大于nv的点
     for (int i = 0; i < (*ntri); i++)
     {
         if (v[i].p1 >= nv || v[i].p2 >= nv || v[i].p3 >= nv)
@@ -289,7 +290,7 @@ int main(int argc, char **argv)
 
     qsort(p, nv, sizeof(XYZ), XYZCompare);
 
-    ITRIANGLE *v = malloc(3 * nv * sizeof(ITRIANGLE));
+    ITRIANGLE *v = malloc(sizeof(ITRIANGLE) * nv * 3);
 
     int ntri = 0;
     Triangulate(nv, p, v, &ntri);
